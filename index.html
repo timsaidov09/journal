@@ -303,11 +303,6 @@ tbody td{padding:0;vertical-align:middle;}
       </tr></tfoot>
     </table>
   </div></div>
-  <div class="pgbar">
-    <div class="pgsize">Строк: <select id="pgsize" onchange="chPg()"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></div>
-    <div class="pginfo" id="pginfo"></div>
-    <div class="pgbtns" id="pgbtns"></div>
-  </div>
 </div>
 
 <div class="panel" id="pc">
@@ -441,7 +436,6 @@ function saveCfg(){
 }
 
 // ═══ DATA ════════════════════════════════════════
-var curPage=1,pgSize=25,filteredIdx=[],selected=new Set();
 var rows=JSON.parse(localStorage.getItem('jv11')||'[]');
 var srtS={col:-1,dir:1},stIdx=null,chI={};
 
@@ -643,134 +637,75 @@ document.addEventListener('click',function(e){
     closeP();
 });
 
-function toggleSel(idx,checked){if(checked)selected.add(idx);else selected.delete(idx);updSel();}
-function toggleAll(checked){filteredIdx.forEach(function(i){if(checked)selected.add(i);else selected.delete(i);});updSel();render();}
-function clearSel(){selected.clear();document.getElementById("chkall").checked=false;updSel();render();}
-function updSel(){
-  var n=selected.size,bar=document.getElementById("selbar");
-  bar.classList.toggle("on",n>0);
-  document.getElementById("selcnt").textContent=n;
-}
-function delSelected(){
-  if(!selected.size)return;
-  if(!confirm("Удалить "+selected.size+" строк?"))return;
-  Array.from(selected).sort(function(a,b){return b-a;}).forEach(function(i){rows.splice(i,1);});
-  selected.clear();curPage=1;save();render();updSel();toast("Удалено");
-}
-function expSelected(){
-  if(!selected.size){toast("Выберите строки");return;}
-  var sel=Array.from(selected).map(function(i){return rows[i];});
-  var w=window.open("","_blank");
-  var trs=sel.map(function(r,idx){
-    var ot=calcOT(r.start,r.end,r.lunch);
-    return "<tr><td>"+(idx+1)+"</td><td>"+(r.date||"")+"</td><td>"+(r.height||"")+"м</td><td>"+(r.address||"")+"</td><td>"+(r.dispatcher||"")+"</td><td>"+(r.car||"")+"</td><td>"+(r.start||"")+"</td><td>"+(r.end||"")+"</td><td>"+(ot!==''?ot+" ч":"")+"</td><td>"+(r.price?parseFloat(r.price).toLocaleString("ru-RU")+" ₽":"")+"</td><td>"+(r.status||"")+"</td></tr>";
-  }).join("");
-  w.document.write("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Журнал</title><style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:6px 9px;text-align:left}th{background:#f5f5f5;font-weight:600}@media print{.np{display:none}}</style></head><body>");
-  w.document.write("<h2 style=\"margin-bottom:12px\">Журнал Автовышка — "+sel.length+" заказов</h2>");
-  w.document.write("<button class=\"np\" onclick=\"window.print()\" style=\"margin-bottom:14px;padding:7px 16px;background:#2660e8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px\">Печать / PDF</button>");
-  w.document.write("<table><thead><tr><th>#</th><th>Дата</th><th>Высота</th><th>Адрес</th><th>Диспетчер</th><th>Машина</th><th>Начало</th><th>Конец</th><th>Переработка</th><th>Цена</th><th>Статус</th></tr></thead><tbody>"+trs+"</tbody></table></body></html>");
-  w.document.close();toast("Открыто для печати");
-}
-
-function renderPg(total,totalPages,start,end){
-  document.getElementById("pginfo").textContent="Показано "+(start+1)+"–"+end+" из "+total;
-  var btns=document.getElementById("pgbtns");btns.innerHTML="";
-  function mkb(lbl,pg,active,dis){
-    var b=document.createElement("button");b.className="pgbtn"+(active?" on":"");
-    b.textContent=lbl;b.disabled=dis||false;
-    if(!dis)b.onclick=function(){curPage=pg;render();};return b;
-  }
-  btns.appendChild(mkb("‹",curPage-1,false,curPage===1));
-  var pages=[];
-  if(totalPages<=7){for(var i=1;i<=totalPages;i++)pages.push(i);}
-  else{pages=[1];if(curPage>3)pages.push("…");for(var i=Math.max(2,curPage-1);i<=Math.min(totalPages-1,curPage+1);i++)pages.push(i);if(curPage<totalPages-2)pages.push("…");pages.push(totalPages);}
-  pages.forEach(function(p){
-    if(p==="…"){var d=document.createElement("span");d.className="pgdots";d.textContent="…";btns.appendChild(d);}
-    else btns.appendChild(mkb(p,p,p===curPage,false));
-  });
-  btns.appendChild(mkb("›",curPage+1,false,curPage===totalPages));
-}
-function chPg(){pgSize=parseInt(document.getElementById("pgsize").value);curPage=1;render();}
-
-
-// ═══ RENDER
+// ═══ RENDER ══════════════════════════════════════
 function render(){
-  var fa=document.getElementById("fa").value.toLowerCase();
-  var fd=document.getElementById("fd").value.toLowerCase();
-  var fc=document.getElementById("fc").value;
-  var fs=document.getElementById("fst").value;
-  var fm=document.getElementById("fm").value;
-  filteredIdx=[];
+  var tb=document.getElementById('tb');
+  tb.innerHTML='';
   rows.forEach(function(r,i){
-    var ok=true;
-    if(fa&&!String(r.address||"").toLowerCase().includes(fa))ok=false;
-    if(fd&&!String(r.dispatcher||"").toLowerCase().includes(fd))ok=false;
-    if(fc&&r.car!==fc)ok=false;
-    if(fs&&r.status!==fs)ok=false;
-    if(fm){var mm=String(r.date||r.start||"").match(/\d{2}\.(\d{2})\./);if(!mm||mm[1]!==fm)ok=false;}
-    if(ok)filteredIdx.push(i);
-  });
-
-  var total=filteredIdx.length;
-  var totalPages=Math.max(1,Math.ceil(total/pgSize));
-  if(curPage>totalPages)curPage=totalPages;
-  var start=(curPage-1)*pgSize,end=Math.min(start+pgSize,total);
-  var pageIdx=filteredIdx.slice(start,end);
-
-  var tb=document.getElementById("tb");
-  tb.innerHTML="";
-  pageIdx.forEach(function(i){
-    var r=rows[i];
     var perk=calcPerk(r.start,r.end,r.lunch);
     var ot=calcOT(r.start,r.end,r.lunch);
     var bal=(parseFloat(r.price)||0)-(parseFloat(r.advance)||0);
-    var st=r.status||"❌ Не оплачено";
-    var otCls=ot===""?"otzero":(ot>0?"otpos":ot<0?"otneg":"otzero");
-    var isChk=selected.has(i);
-    var startT=(String(r.start||"").match(/(\d{2}:\d{2})$/)||["09:00"])[0];
-    var endT=(String(r.end||"").match(/(\d{2}:\d{2})$/)||["18:00"])[0];
-    var lunchH=r.lunch!==undefined&&r.lunch!==""?parseFloat(r.lunch):1;
-    var photo=r.photo&&r.photo.indexOf("http")===0?"<a href=\""+r.photo+"\" target=\"_blank\" style=\"color:var(--acc);font-size:12px;text-decoration:none\">📷</a>":"<span style=\"color:var(--ink3)\">—</span>";
-    var inv=r.invoice||buildInv(r);
+    var st=r.status||'❌ Не оплачено';
+    var otCls=ot===''?'otzero':(ot>0?'otpos':ot<0?'otneg':'otzero');
 
-    var tr=document.createElement("tr");
+    // date display
+    var dateVal=r.date?r.date.substr(0,10):'';
+    var dateCls='pdisp cdt'+(dateVal?'':' ph');
+
+    // time display
+    var startT=r.start?String(r.start).match(/(\d{2}:\d{2})$/):'';
+    startT=startT?startT[1]:'09:00';
+    var endT=r.end?String(r.end).match(/(\d{2}:\d{2})$/):'';
+    endT=endT?endT[1]:'18:00';
+    var lunchH=r.lunch!==undefined&&r.lunch!==''?parseFloat(r.lunch):1;
+    var lunchDisp=hToLunch(lunchH);
+
+    // photo
+    var photo=r.photo&&r.photo.indexOf('http')===0
+      ? '<a href="'+r.photo+'" target="_blank" style="color:var(--acc);font:700 12px Inter,sans-serif;text-decoration:none">📷</a>'
+      : '<span style="color:var(--ink3)">—</span>';
+
+    var tr=document.createElement('tr');
     tr.dataset.i=i;
-    if(isChk)tr.classList.add("sel");
     tr.innerHTML=
-      "<td class=\"chkcell\"><div class=\"chi\"><input type=\"checkbox\" class=\"cbx\"" +(isChk?" checked":"")+ " onchange=\"toggleSel("+i+",this.checked)\"></div></td>"+
-      "<td><div class=\"c cn\">"+(filteredIdx.indexOf(i)+1)+"</div></td>"+
-      "<td><div class=\"pdisp cdt"+(r.date?"":' ph')+"" onclick=\"openDate(this,"+i+")\">"+(r.date?r.date.substr(0,10):"Выбрать")+"<span class=\"parr\">▾</span></div></td>"+
-      "<td>"+ec("height",i,r.height,"c",55,"center")+"</td>"+
-      "<td>"+ec("address",i,r.address,"c",270)+"</td>"+
-      "<td>"+ec("dispatcher",i,r.dispatcher,"c",108)+"</td>"+
-      "<td class=\"ctd\"><span class=\"ctag "+carCls(r.car)+"\">" +esc(r.car||"?")+ "</span>"+
-        "<select class=\"csel\" data-f=\"car\" data-i=\""+i+"\" onchange=\"onSel(this)\">"+
-        ["077","944","530","889"].map(function(c){return"<option"+(c===r.car?" selected":"")+">" +c+"</option>";}).join("")+
-        "<option value=\"__x\">+ Другой</option></select></td>"+
-      "<td><div class=\"pdisp cdt\" onclick=\"openTime(this,\'start\',"+i+",\'time\')\">" +startT+ "<span class=\"parr\">▾</span></div></td>"+
-      "<td><div class=\"pdisp cdt\" onclick=\"openTime(this,\'end\',"+i+",\'time\')\">" +endT+ "<span class=\"parr\">▾</span></div></td>"+
-      "<td><div class=\"pdisp\" style=\"justify-content:center;font-size:13px;color:var(--ink2)\" onclick=\"openTime(this,\'lunch\',"+i+",\'lunch\')\">" +hToLunch(lunchH)+ "<span class=\"parr\">▾</span></div></td>"+
-      "<td><div class=\"cc otzero\">" +(perk!==''?perk+" ч":"—")+ "</div></td>"+
-      "<td><div class=\"cc "+otCls+"\">"+( ot!==""?(ot>0?"+":"")+ot+" ч":"—")+"</div></td>"+
-      "<td>"+ec("km",i,r.km,"c",40,"center")+"</td>"+
-      "<td>"+em("price",i,r.price)+"</td>"+
-      "<td>"+em("advance",i,r.advance)+"</td>"+
-      "<td><div class=\"cc "+(bal>0?"cpos":bal<0?"cneg":"")+"\" style=\"text-align:right;padding:8px 12px\">" +(bal?fmt(bal)+" ₽":"—")+ "</div></td>"+
-      "<td style=\"position:relative;padding:8px 12px\"><div style=\"cursor:pointer\" onclick=\"openSt(this,"+i+")\">" +"<span class=\"badge "+bCls(st)+"\">"+esc(st)+"</span></div></td>"+
-      "<td>"+ec("invoice",i,inv,"c",200)+"</td>"+
-      "<td><button class=\"btn btng\" style=\"padding:3px 7px;font-size:11px\" onclick=\"delRow("+i+")\" >✕</button></td>";
+      '<td><div class="c cn">'+(i+1)+'</div></td>'+
+      '<td><div class="'+dateCls+'" onclick="openDate(this,'+i+')">'+(dateVal||'<span>Выбрать</span>')+'<span class="parr">▼</span></div></td>'+
+      '<td>'+ec('height',i,r.height,'c',60)+'</td>'+
+      '<td>'+ec('address',i,r.address,'c',300)+'</td>'+
+      '<td>'+ec('dispatcher',i,r.dispatcher,'c')+'</td>'+
+      '<td class="ctd"><span class="ctag '+carCls(r.car)+'">'+esc(r.car||'?')+'</span>'+
+        '<select class="csel" data-f="car" data-i="'+i+'" onchange="onSel(this)">'+
+        ['077','944','530','889'].map(function(c){return '<option'+(c===r.car?' selected':'')+'>'+c+'</option>';}).join('')+
+        '<option value="__x">+ Другой</option></select></td>'+
+      '<td><div class="pdisp cdt" onclick="openTime(this,\'start\','+i+',\'time\')">'+startT+'<span class="parr">▼</span></div></td>'+
+      '<td><div class="pdisp cdt" onclick="openTime(this,\'end\','+i+',\'time\')">'+endT+'<span class="parr">▼</span></div></td>'+
+      '<td><div class="pdisp" style="justify-content:center;font:700 13px Inter,sans-serif;color:var(--ink2)" onclick="openTime(this,\'lunch\','+i+',\'lunch\')">'+lunchDisp+'<span class="parr">▼</span></div></td>'+
+      '<td><div class="cc otzero">'+(perk!==''?perk+' ч':'—')+'</div></td>'+
+      '<td><div class="cc '+otCls+'">'+(ot!==''?(ot>0?'+':'')+ot+' ч':'—')+'</div></td>'+
+      '<td>'+ec('km',i,r.km,'c',45,'center')+'</td>'+
+      '<td>'+em('price',i,r.price)+'</td>'+
+      '<td>'+em('advance',i,r.advance)+'</td>'+
+      '<td><div class="cc '+(bal>0?'cpos':bal<0?'cneg':'')+'" style="text-align:right;padding:8px 9px">'+(bal?fmt(bal)+' ₽':'—')+'</div></td>'+
+      '<td style="position:relative"><div class="c" style="padding:7px 9px;cursor:pointer" onclick="openSt(this,'+i+')"><span class="badge '+bCls(st)+'">'+esc(st)+'</span></div></td>'+
+      '<td><div class="c" style="padding:8px 9px">'+photo+'</div></td>'+
+      '<td>'+ec('invoice',i,r.invoice||buildInv(r),'c',260)+'</td>'+
+      '<td><button class="btn btnd" onclick="delRow('+i+')">✕</button></td>';
     tb.appendChild(tr);
   });
-
-  var at=document.createElement("tr");at.className="addr";
-  at.innerHTML="<td colspan=\"20\"><button class=\"addbtn\" onclick=\"addRow()\">＋ Добавить строку</button></td>";
+  var at=document.createElement('tr');
+  at.className='addr';
+  at.innerHTML='<td colspan="19"><button class="addbtn" onclick="addRow()">＋ Добавить строку</button></td>';
   tb.appendChild(at);
+  filt(); updStats();
+}
 
-  renderPg(total,totalPages,start,end);
-  updStats(pageIdx);
-
-  var allChk=document.getElementById("chkall");
-  if(allChk){allChk.checked=filteredIdx.length>0&&filteredIdx.every(function(i){return selected.has(i);});allChk.indeterminate=selected.size>0&&!allChk.checked;}
+function ec(f,i,v,cls,mw,ta){
+  cls=cls||'c';
+  var st=(mw?'max-width:'+mw+'px;':'')+(ta?'text-align:'+ta+';':'');
+  return '<div class="'+cls+'" contenteditable="true" data-f="'+f+'" data-i="'+i+'" style="'+st+'" onblur="onB(this)" onkeydown="onK(event,this)">'+esc(v||'')+'</div>';
+}
+function em(f,i,v){
+  return '<div class="c cr" contenteditable="true" data-f="'+f+'" data-i="'+i+'" onblur="onM(this)" onkeydown="onK(event,this)">'+esc(fmt(v)||'')+'</div>';
 }
 
 // ═══ CELL EVENTS ════════════════════════════════
@@ -867,25 +802,21 @@ function rfilt(){
   ['fa','fd','fc','fst','fm'].forEach(function(id){document.getElementById(id).value='';});
   filt();
 }
-function updStats(pageIdx){
-  pageIdx=pageIdx||filteredIdx;
-  // use filteredIdx for totals, pageIdx for page footer
-
-  var vis=filteredIdx.map(function(i){return rows[i];});
+function updStats(){
+  var vis=rows.filter(function(r,i){
+    var tr=document.querySelector('#tb tr[data-i="'+i+'"]');
+    return tr&&!tr.classList.contains('fout');
+  });
   var sum=vis.reduce(function(s,r){return s+(parseFloat(r.price)||0);},0);
   var adv=vis.reduce(function(s,r){return s+(parseFloat(r.advance)||0);},0);
   var bal=sum-adv,unp=vis.filter(function(r){return r.status==='❌ Не оплачено';}).length;
-  var pvis=pageIdx.map(function(i){return rows[i];});
-  var psum=pvis.reduce(function(s,r){return s+(parseFloat(r.price)||0);},0);
-  var padv=pvis.reduce(function(s,r){return s+(parseFloat(r.advance)||0);},0);
-  var pbal=psum-padv;
   document.getElementById('s0').textContent=vis.length;
   document.getElementById('s1').textContent=sum.toLocaleString('ru-RU')+' ₽';
   document.getElementById('s2').textContent=adv.toLocaleString('ru-RU')+' ₽';
   document.getElementById('s3').textContent=bal.toLocaleString('ru-RU')+' ₽';
   document.getElementById('s4').textContent=unp;
-  document.getElementById('ft0').textContent=psum?psum.toLocaleString('ru-RU')+' ₽':'';
-  document.getElementById('ft1').textContent=padv?padv.toLocaleString('ru-RU')+' ₽':'';
+  document.getElementById('ft0').textContent=sum?sum.toLocaleString('ru-RU')+' ₽':'';
+  document.getElementById('ft1').textContent=adv?adv.toLocaleString('ru-RU')+' ₽':'';
   var fb=document.getElementById('ft2');
   fb.textContent=bal?bal.toLocaleString('ru-RU')+' ₽':'';
   fb.className='cr '+(bal>=0?'cpos':'cneg');
